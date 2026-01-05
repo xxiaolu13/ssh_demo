@@ -1,0 +1,58 @@
+use crate::model::state::AppState;
+use actix_web::{web, HttpResponse};
+use sqlx::PgPool;
+use tracing::log::error;
+use crate::db::server::*;
+use crate::db::servergroup::create_group_db;
+use crate::model::server::CreateSingleServiceTerminal;
+use crate::model::servergroup::CreateGroup;
+
+pub async fn get_all_servers(
+    data: web::Data<AppState>
+) -> Result<HttpResponse, actix_web::Error> {
+    let servers = get_all_servers_db(&data.db_pool)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch servers: {:?}", e);
+            actix_web::error::ErrorInternalServerError("Failed to fetch servers")
+        })?;
+
+    Ok(HttpResponse::Ok().json(servers))
+}
+
+pub async fn get_server_by_id(
+    data: web::Data<AppState>,
+    params: web::Path<i32>,
+) -> Result<HttpResponse, actix_web::Error> {
+    let server_id = params.into_inner();
+    let server = get_server_by_id_db(&data.db_pool,server_id)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch servers: {:?}", e);
+            actix_web::error::ErrorInternalServerError("Failed to fetch servers")
+        })?;
+    Ok(HttpResponse::Ok().json(server))
+}
+
+pub async fn get_server_by_group_id(
+    data: web::Data<AppState>,
+    group_id: web::Path<i32>,
+) -> Result<HttpResponse, actix_web::Error> {
+    let group_id = group_id.into_inner();
+    let server = get_server_by_group_id_db(&data.db_pool,group_id)
+        .await
+        .map_err(|e| {
+            error!("Failed to fetch servers: {:?}", e);
+            actix_web::error::ErrorInternalServerError("Failed to fetch servers")
+        })?;
+    Ok(HttpResponse::Ok().json(server))
+}
+
+
+pub async fn create_single_server(data: web::Data<AppState>,server: web::Json<CreateSingleServiceTerminal>) -> Result<HttpResponse, actix_web::Error> {
+    let server = create_single_server_db(&data.db_pool,server.try_into()?).await.map_err(|e| {
+        error!("Failed to create a server: {:?}", e);
+        actix_web::error::ErrorInternalServerError("Failed to create a server")
+    })?;
+    Ok(HttpResponse::Ok().json(server))
+}

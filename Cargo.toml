@@ -18,3 +18,5 @@ sqlx = { version = "0.8.6", features = ["postgres","runtime-tokio-rustls","macro
 tracing = "0.1.43"
 tracing-subscriber = "0.3.22"
 serde_json = "1.0.145"
+aes-gcm = "0.10.3"
+hex = "0.4.3"

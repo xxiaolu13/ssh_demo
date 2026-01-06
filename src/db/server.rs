@@ -2,8 +2,8 @@ use actix_web::web;
 use anyhow::anyhow;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
-use tracing::log::error;
-use crate::model::server::{CreateSingleServiceTerminal, ServiceTerminal};
+use tracing::log::{error,info};
+use crate::model::server::{CreateGroupServiceTerminal, CreateSingleServiceTerminal, ServiceTerminal};
 use crate::utils::crypto::passwd_encryption;
 use crate::db::servergroup::get_group_by_id_db;
 pub async fn get_all_servers_db(p0: &PgPool) ->  Result<Vec<ServiceTerminal>, anyhow::Error>{
@@ -69,6 +69,60 @@ pub async fn create_single_server_db(p0: &PgPool, server: CreateSingleServiceTer
         password
     ).fetch_one(p0).await?;
     Ok(row)
+}
+
+
+pub async fn create_group_server_db(p0: &PgPool,server: CreateGroupServiceTerminal) -> Result<Vec<CreateSingleServiceTerminal>, anyhow::Error> {
+    // 密码加密，用户端口设置默认值
+    let password = passwd_encryption(server.password.clone())?;
+    let ssh_user = if let Some(e) = server.ssh_user{
+        e
+    }else{
+        "root".to_string()
+    };
+    let port = if let Some(e) = server.port{
+        e
+    }else{
+        22
+    };
+
+    let mut count = 1;
+    let server_ip_list = server.ip;
+
+    let mut rows = Vec::new();
+    for this_ip in server_ip_list{
+        let name = server.name.as_ref().map(|prefix| format!("{}{}", prefix, count));
+        let row = sqlx::query_as!(
+        CreateSingleServiceTerminal,
+        r#"
+        INSERT INTO servers (name,group_id,ssh_user,ip,port,password_hash)
+        VALUES ($1, $2,$3,$4,$5,$6)
+        RETURNING name,group_id,ssh_user,ip,port,password_hash as password
+        "#,
+        name,
+        server.group_id,
+        ssh_user.clone(),
+        this_ip.clone(),
+        port,
+        password.clone()
+    ).fetch_one(p0).await
+            .map_err(|e| {
+            error!("Failed to insert server with ip {}: {}", this_ip, e);
+            e
+        });
+        match row {
+            Ok(r) => {
+                rows.push(r);
+                info!("Successfully inserted server with ip: {}", this_ip);
+            },
+            Err(_) => {
+                count += 1;
+                continue;
+            }
+        }
+        count += 1;
+    }
+    Ok(rows)
 }
 
 

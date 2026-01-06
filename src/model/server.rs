@@ -23,7 +23,7 @@ pub struct CreateSingleServiceTerminal {
 }
 #[derive(Deserialize, Debug, Clone, Serialize)]
 pub struct CreateGroupServiceTerminal { // name为前缀，group必填，ip列表，其他强一致
-    pub name_prefix: Option<String>,
+    pub name: Option<String>,
     pub group_id: i32,
     pub ssh_user: Option<String>,
     pub ip: Vec<String>,
@@ -67,6 +67,23 @@ impl TryFrom<web::Json<CreateSingleServiceTerminal>> for CreateSingleServiceTerm
         })
     }
 }
+
+impl TryFrom<web::Json<CreateGroupServiceTerminal>> for CreateGroupServiceTerminal {
+    type Error = actix_web::Error;
+    fn try_from(data: web::Json<CreateGroupServiceTerminal>) -> Result<Self, Self::Error> {
+        Ok(
+            CreateGroupServiceTerminal{
+                name: data.name.clone(),
+                group_id: data.group_id.clone(),
+                ssh_user: data.ssh_user.clone(),
+                ip: data.ip.clone(),
+                port: data.port,
+                password: data.password.clone(),
+            }
+        )
+    }
+}
+
 impl TryFrom<web::Json<UpdateServiceTerminal>> for UpdateServiceTerminal {
     type Error = actix_web::Error;
     fn try_from(data: web::Json<UpdateServiceTerminal>) -> Result<Self, Self::Error> {

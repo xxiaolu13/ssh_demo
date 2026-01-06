@@ -1821,6 +1821,7 @@ dependencies = [
  "dotenvy",
  "env_logger",
  "hex",
+ "log",
  "russh",
  "serde",
  "serde_json",

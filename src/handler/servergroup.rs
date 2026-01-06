@@ -59,3 +59,13 @@ pub async fn delete_group_by_id(data: web::Data<AppState>,group_id: web::Path<i3
     };
     Ok(HttpResponse::Ok().json(ans))
 }
+
+
+pub async fn update_group_by_id(data: web::Data<AppState>,group_id: web::Path<i32>,newgroup: web::Json<UpdateGroup>) -> Result<HttpResponse, actix_web::Error> {
+    let group_id = group_id.into_inner();
+    let group = update_group_by_id_db(&data.db_pool, group_id,newgroup.try_into()?).await.map_err(|e| {
+        error!("can't update this group: {:?}", e);
+        actix_web::error::ErrorInternalServerError("can't update this group")
+    })?;
+    Ok(HttpResponse::Ok().json(group))
+}

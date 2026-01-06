@@ -4,10 +4,8 @@ use chrono::{DateTime, Utc};
 #[derive(Deserialize, Debug, Clone,Serialize,sqlx::FromRow)]
 pub struct Group{
     pub group_id: i32,
-    pub name: Option<String>,
+    pub name: String,
     pub description: Option<String>,
-    // pub created_at: DateTime<Utc>,
-    // pub updated_at: DateTime<Utc>,
 }
 #[derive(Debug, Clone, Deserialize,Serialize)]
 pub struct CreateGroup {
@@ -29,8 +27,6 @@ impl TryFrom<web::Json<Group>> for Group {
                 group_id: data.group_id,
                 name: data.name.clone(),
                 description: data.description.clone(),
-                // created_at: data.created_at,
-                // updated_at: data.updated_at
             })
     }
 }

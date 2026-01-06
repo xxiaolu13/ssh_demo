@@ -16,7 +16,6 @@ pub async fn get_all_servers(
             error!("Failed to fetch servers: {:?}", e);
             actix_web::error::ErrorInternalServerError("Failed to fetch servers")
         })?;
-
     Ok(HttpResponse::Ok().json(servers))
 }
 
@@ -48,11 +47,26 @@ pub async fn get_server_by_group_id(
     Ok(HttpResponse::Ok().json(server))
 }
 
-
 pub async fn create_single_server(data: web::Data<AppState>,server: web::Json<CreateSingleServiceTerminal>) -> Result<HttpResponse, actix_web::Error> {
     let server = create_single_server_db(&data.db_pool,server.try_into()?).await.map_err(|e| {
         error!("Failed to create a server: {:?}", e);
         actix_web::error::ErrorInternalServerError("Failed to create a server")
     })?;
     Ok(HttpResponse::Ok().json(server))
+}
+
+pub async fn delete_single_server_by_id(data: web::Data<AppState>,server_id: web::Path<i32>) -> Result<HttpResponse, actix_web::Error> {
+    let server_id = server_id.into_inner();
+    let _ = get_server_by_id_db(&data.db_pool,server_id)
+        .await
+        .map_err(|e| {
+            error!("Delete server Failed to fetch server: {:?}", e);
+            actix_web::error::ErrorInternalServerError("Delete server Failed to fetch server")
+        })?;
+    let ans = delete_single_server_by_id_db(&data.db_pool,server_id).await
+        .map_err(|e| {
+        error!("Failed to Delete server: {:?}", e);
+        actix_web::error::ErrorInternalServerError("Failed to Delete server")
+    })?;
+    Ok(HttpResponse::Ok().json(ans))
 }

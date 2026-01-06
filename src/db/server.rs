@@ -37,6 +37,16 @@ pub async fn get_server_by_group_id_db(p0: &PgPool, id: i32) -> Result<Vec<Servi
 
 
 pub async fn create_single_server_db(p0: &PgPool, server: CreateSingleServiceTerminal) -> Result<CreateSingleServiceTerminal, anyhow::Error> {
+    let ssh_user = if let Some(e) = server.ssh_user{
+        e
+    }else{
+        "root".to_string()
+    };
+    let port = if let Some(e) = server.port{
+        e
+    }else{
+        22
+    };
     if let Some(e) = server.group_id{
         let _ = get_group_by_id_db(p0,e).await.map_err(|e| {
             error!("Create server but Failed to fetch group by id: {:?}", e);
@@ -53,10 +63,16 @@ pub async fn create_single_server_db(p0: &PgPool, server: CreateSingleServiceTer
         "#,
         server.name.clone(),
         server.group_id,
-        server.ssh_user.clone(),
+        ssh_user,
         server.ip.clone(),
-        server.port,
+        port,
         password
     ).fetch_one(p0).await?;
     Ok(row)
+}
+
+
+pub async fn delete_single_server_by_id_db(p0: &PgPool, id: i32) -> Result<String, anyhow::Error>{
+    let row = sqlx::query!("delete from servers where id=$1",id).execute(p0).await?;
+    Ok(format!("Successfully deleted {:?} group", row))
 }

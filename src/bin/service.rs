@@ -5,8 +5,8 @@ use sqlx::postgres::PgPoolOptions;
 use tracing::info;
 use handler::notfound::not_found_handler;
 use model::state::AppState;
-use crate::handler::server::{create_single_server, get_all_servers, get_server_by_group_id, get_server_by_id};
-use crate::handler::servergroup::{create_group, delete_group_by_id, get_all_groups, get_group_by_id};
+use crate::handler::server::*;
+use crate::handler::servergroup::*;
 
 #[path="../model/mod.rs"]
 mod model;
@@ -36,12 +36,14 @@ async fn main()  -> std::io::Result<()> {
                         .route("",web::post().to(create_group))
                         .route("/{id}",web::delete().to(delete_group_by_id))
                         .route("/{id}", web::get().to(get_group_by_id))
+                        .route("/{id}", web::put().to(update_group_by_id))
                 )
                 .service(
                     web::scope("/server")
                         .route("",web::get().to(get_all_servers))
                         .route("",web::post().to(create_single_server))
                         .route("/{id}", web::get().to(get_server_by_id))
+                        .route("/{id}",web::delete().to(delete_single_server_by_id))
                         .route("/group/{id}", web::get().to(get_server_by_group_id))
                 )
                 .service(

@@ -3,10 +3,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Debug, Clone,Serialize)]
 pub struct ServiceTerminal {
-    pub id: i32,                // 主键，自增
-    pub name: Option<String>,   // 默认None
-    pub group_id: Option<i32>,  // 默认None
-    pub ssh_user: Option<String>,   // 默认root
+    pub id: i32,
+    pub name: Option<String>,
+    pub group_id: Option<i32>,
+    pub ssh_user: String,
     pub ip: String,
     pub port: i32,
     pub password: String,
@@ -18,7 +18,7 @@ pub struct CreateSingleServiceTerminal {
     pub group_id: Option<i32>,  // 默认None
     pub ssh_user: Option<String>,   // 默认root
     pub ip: String,
-    pub port: i32,
+    pub port: Option<i32>,  // 默认22
     pub password: String,
 }
 #[derive(Deserialize, Debug, Clone, Serialize)]
@@ -27,7 +27,7 @@ pub struct CreateGroupServiceTerminal { // name为前缀，group必填，ip列�
     pub group_id: i32,
     pub ssh_user: Option<String>,
     pub ip: Vec<String>,
-    pub port: i32,
+    pub port: Option<i32>,
     pub password: String,
 }
 #[derive(Deserialize, Debug, Clone, Serialize)]

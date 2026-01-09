@@ -1,5 +1,5 @@
-use sqlx::{query, PgPool};
-use sqlx::postgres::PgQueryResult;
+use sqlx::PgPool;
+
 use crate::model::servergroup::*;
 
 pub async fn get_all_groups_db(p0: &PgPool) -> Result<Vec<Group>,anyhow::Error>{

@@ -1,6 +1,5 @@
 use actix_web::web;
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
 #[derive(Deserialize, Debug, Clone,Serialize,sqlx::FromRow)]
 pub struct Group{
     pub group_id: i32,

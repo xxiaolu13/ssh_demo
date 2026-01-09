@@ -1,6 +1,6 @@
-use std::sync::{Arc, mpsc::{self, Receiver}};
-use crate::{handler::server::get_server_by_group_id, model::ssh::{Client, Message, Session}};
-use actix_web::{web, HttpResponse,Responder};
+use std::sync::Arc;
+use crate::{model::ssh::{Client, Message, Session}};
+use actix_web::{web, HttpResponse};
 use crate::model::http::*;
 use actix_web::error::ErrorInternalServerError;
 use tracing::log::{error,info,warn};
@@ -216,7 +216,7 @@ pub async fn batch_server_ssh_handler(data: web::Data<AppState>,body:web::Json<B
 
 }
 
-
+// 防止batch server ssh handler中tokio spawn中的嵌套，所以单独拿出来这部分，后续加密钥认证方便改
 async fn batch_ssh_execute(
     config: Arc<russh::client::Config>,
     ip_port: String,

@@ -1,7 +1,6 @@
 use crate::model::state::AppState;
 use actix_web::{web, HttpResponse};
 use crate::model::servergroup::*;
-use sqlx::PgPool;
 use tracing::log::error;
 use crate::db::servergroup::*;
 use crate::db::server::get_server_by_group_id_db;

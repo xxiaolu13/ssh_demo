@@ -1,7 +1,7 @@
-use std::env;
+
 use aes_gcm::{
     aead::{Aead, AeadCore, KeyInit, OsRng},
-    Aes256Gcm, Nonce, Key
+    Aes256Gcm,Key
 };
 use anyhow::{Context, Result};
 const MASTER_KEY:&[u8; 32] = b"MYSSHwAKR3!EPEM*YeID*TL9t*35Ei!O";

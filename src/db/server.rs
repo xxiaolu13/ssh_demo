@@ -6,6 +6,10 @@ use tracing::log::{error,info};
 use crate::model::server::{CreateGroupServiceTerminal, CreateSingleServiceTerminal, ServiceTerminal};
 use crate::utils::crypto::passwd_encryption;
 use crate::db::servergroup::get_group_by_id_db;
+
+
+
+
 pub async fn get_all_servers_db(p0: &PgPool) ->  Result<Vec<ServiceTerminal>, anyhow::Error>{
     let rows = sqlx::query_as!(
         ServiceTerminal,

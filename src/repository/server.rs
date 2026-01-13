@@ -1,9 +1,9 @@
 
 use sqlx::PgPool;
 use tracing::log::{error,info};
-use crate::model::server::{CreateGroupServiceTerminal, CreateSingleServiceTerminal, ServiceTerminal};
+use crate::domain::server::{CreateGroupServiceTerminal, CreateSingleServiceTerminal, ServiceTerminal};
 use crate::utils::crypto::passwd_encryption;
-use crate::db::servergroup::get_group_by_id_db;
+use crate::repository::servergroup::get_group_by_id_db;
 
 
 

@@ -1,7 +1,27 @@
 [package]
-name = "my_ssh"
+name = "connect_ok"
 version = "0.1.0"
 edition = "2024"
+
+
+
+[lib]
+name = "connect_ok"
+path = "src/lib.rs"
+
+
+
+[[bin]]
+name = "api"
+path = "src/bin/api.rs"
+
+
+
+
+
+
+
+
 
 [dependencies]
 anyhow = "1.0.100"

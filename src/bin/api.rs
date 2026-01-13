@@ -1,22 +1,14 @@
-use handler::ssh::*;
+use connect_ok::handler::ssh::*;
 use actix_web::{web, App, HttpServer,middleware};
 use dotenvy::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use tracing::info;
-use handler::notfound::not_found_handler;
-use model::state::AppState;
-use crate::handler::server::*;
-use crate::handler::servergroup::*;
+use connect_ok::handler::notfound::not_found_handler;
+use connect_ok::db::pool::AppState;
+use connect_ok::handler::server::*;
+use connect_ok::handler::servergroup::*;
 use actix_cors::Cors;
-#[path="../model/mod.rs"]
-mod model;
-#[path="../handler/mod.rs"]
-mod handler;
-#[path="../db/mod.rs"]
-mod db;
-#[path="../utils/mod.rs"]
-mod utils;
-
+use connect_ok::handler::cron_job::{create_cronjob, get_all_cronjobs, get_cronjob_by_id};
 
 #[tokio::main]
 async fn main()  -> std::io::Result<()> {
@@ -61,6 +53,12 @@ async fn main()  -> std::io::Result<()> {
                         .route("", web::post().to(single_server_ssh_handler))// 单个server执行命令
                         .route("/batch",web::post().to(batch_server_ssh_handler))
                         .route("/{id}",web::get().to(test_connect)) // 测试ssh连接
+                )
+                .service(
+                    web::scope("/cronjob")
+                        .route("",web::post().to(create_cronjob))// 创建cronjob
+                        .route("",web::get().to(get_all_cronjobs)) // 查所有
+                        .route("/{id}",web::get().to(get_cronjob_by_id)) // 根据id查
                 )
                 .default_service(web::route().to(not_found_handler))
         })

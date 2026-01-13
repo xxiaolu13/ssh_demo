@@ -1,6 +1,6 @@
 use sqlx::PgPool;
 
-use crate::model::servergroup::*;
+use crate::domain::servergroup::*;
 
 pub async fn get_all_groups_db(p0: &PgPool) -> Result<Vec<Group>,anyhow::Error>{
     let rows = sqlx::query_as!(

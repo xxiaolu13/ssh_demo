@@ -603,6 +603,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "connect_ok"
+version = "0.1.0"
+dependencies = [
+ "actix-cors",
+ "actix-rt",
+ "actix-web",
+ "aes-gcm",
+ "anyhow",
+ "bytes",
+ "chrono",
+ "dotenvy",
+ "env_logger",
+ "hex",
+ "log",
+ "russh",
+ "serde",
+ "serde_json",
+ "shell-escape",
+ "sqlx",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "const-oid"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1822,32 +1848,6 @@ dependencies = [
  "log",
  "wasi",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "my_ssh"
-version = "0.1.0"
-dependencies = [
- "actix-cors",
- "actix-rt",
- "actix-web",
- "aes-gcm",
- "anyhow",
- "bytes",
- "chrono",
- "dotenvy",
- "env_logger",
- "hex",
- "log",
- "russh",
- "serde",
- "serde_json",
- "shell-escape",
- "sqlx",
- "tokio",
- "tokio-stream",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

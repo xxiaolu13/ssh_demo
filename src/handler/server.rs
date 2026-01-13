@@ -1,8 +1,8 @@
-use crate::model::state::AppState;
+use crate::db::pool::AppState;
 use actix_web::{web, HttpResponse};
 use tracing::log::error;
-use crate::db::server::*;
-use crate::model::server::*;
+use crate::repository::server::*;
+use crate::domain::server::*;
 
 
 // update的暂时不写了

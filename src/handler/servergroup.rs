@@ -1,9 +1,9 @@
-use crate::model::state::AppState;
+use crate::db::pool::AppState;
 use actix_web::{web, HttpResponse};
-use crate::model::servergroup::*;
+use crate::domain::servergroup::*;
 use tracing::log::error;
-use crate::db::servergroup::*;
-use crate::db::server::get_server_by_group_id_db;
+use crate::repository::servergroup::*;
+use crate::repository::server::get_server_by_group_id_db;
 
 pub async fn get_all_groups(data: web::Data<AppState>) -> Result<HttpResponse, actix_web::Error>{
     let groups = get_all_groups_db(&data.db_pool).await.map_err(|e| {

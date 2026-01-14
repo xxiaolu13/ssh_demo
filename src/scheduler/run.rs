@@ -8,14 +8,14 @@ pub async fn run_example(sched: &mut JobScheduler) -> Result<Vec<Uuid>, JobSched
     let mut four_s_job_async = Job::new_async_tz("1/4 * * * * *", Utc, |uuid, mut l| {
         Box::pin(async move {
             info!("I run async every 4 seconds id {:?}", uuid);
+            println!("ttttttttttttttttttttttttttttttttttt");
             let next_tick = l.next_tick_for_job(uuid).await;
             match next_tick {
                 Ok(Some(ts)) => info!("Next time for 4s is {:?}", ts),
                 _ => warn!("Could not get next tick for 4s job"),
             }
         })
-    })
-        .unwrap();
+    })?;
     let four_s_job_async_clone = four_s_job_async.clone();
     let js = sched.clone();
     info!("4s job id {:?}", four_s_job_async.guid());

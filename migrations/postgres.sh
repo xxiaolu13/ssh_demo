@@ -1,8 +1,9 @@
+#!/bin/bash
+
 docker pull postgres:17.7
 
 # 创建用于存储 PostgreSQL 数据的目录
 sudo mkdir -p /var/lib/postgresql/data
-# 设置适当的权限
 sudo chown -R 999:999 /var/lib/postgresql/data
 
 docker run -d \
@@ -16,3 +17,6 @@ docker run -d \
   postgres:17.7 \
   -c shared_buffers=256MB \
   -c max_connections=200
+
+# 执行初始化sql
+docker exec -i pgsql psql -U postgres  < 001_init.sql

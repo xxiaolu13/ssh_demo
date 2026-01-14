@@ -1,4 +1,4 @@
-use connect_ok::aa::run::{run_example, stop_example};
+use connect_ok::scheduler::run::{run_example, stop_example};
 use tokio_cron_scheduler::JobScheduler;
 use tracing::Level;
 use tracing_subscriber::FmtSubscriber;

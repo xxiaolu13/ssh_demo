@@ -1,16 +1,24 @@
 use actix_web::web;
 use serde::{Deserialize, Serialize};
+use chrono::{DateTime, Utc};
+use sqlx::FromRow;
 
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct CronJob {
-    // id 自增
     pub id: i32,
     pub name: Option<String>,
-    pub cron_expression: String, // 表达式
+    pub cron_expression: String,
     pub server_id: Option<i32>,
     pub group_id: Option<i32>,
-    pub command: String, // 执行的任务
+    pub command: String,
+    pub enabled: bool,
+    pub timeout: Option<i32>,
+    pub retry_count: Option<i32>,
+    pub description: Option<String>,
+    pub last_executed_at: Option<DateTime<Utc>>,
+    pub next_execute_at: Option<DateTime<Utc>>,
+    pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 impl TryFrom<web::Json<CronJob>> for CronJob {
@@ -22,7 +30,15 @@ impl TryFrom<web::Json<CronJob>> for CronJob {
             cron_expression: json.cron_expression.clone(),
             server_id: json.server_id,
             group_id: json.group_id,
-            command: json.command.clone()
+            command: json.command.clone(),
+            enabled: json.enabled,
+            timeout: json.timeout,
+            retry_count: json.retry_count,
+            description: json.description.clone(),
+            last_executed_at: json.last_executed_at.clone(),
+            next_execute_at: json.next_execute_at.clone(),
+            created_at: json.created_at.clone(),
+            updated_at: json.updated_at.clone()
         })
     }
 }
@@ -31,10 +47,14 @@ impl TryFrom<web::Json<CronJob>> for CronJob {
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CreateCronJob {
     pub name: Option<String>,
-    pub cron_expression: String, // 表达式
+    pub cron_expression: String,
     pub server_id: Option<i32>,
     pub group_id: Option<i32>,
-    pub command: String, // 执行的任务
+    pub command: String,
+    pub enabled: bool,
+    pub timeout: Option<i32>,
+    pub retry_count: Option<i32>,
+    pub description: Option<String>,
 }
 impl TryFrom<web::Json<CreateCronJob>> for CreateCronJob {
     type Error = actix_web::Error;
@@ -44,7 +64,11 @@ impl TryFrom<web::Json<CreateCronJob>> for CreateCronJob {
             cron_expression: json.cron_expression.clone(),
             server_id: json.server_id,
             group_id: json.group_id,
-            command: json.command.clone()
+            command: json.command.clone(),
+            enabled: json.enabled,
+            timeout: json.timeout,
+            retry_count: json.retry_count,
+            description: json.description.clone(),
         })
     }
 }

@@ -1,21 +1,52 @@
-use connect_ok::scheduler::run::{run_example, stop_example};
-use tokio_cron_scheduler::JobScheduler;
-use tracing::Level;
-use tracing_subscriber::FmtSubscriber;
 
-
+use dotenvy::dotenv;
+use sqlx::PgPool;
+use connect_ok::domain::scheduler::JobScheduler;
+use connect_ok::scheduler::prepare::reload_job_from_sql;
+use tracing::{info, debug,error};
 #[tokio::main]
-async fn main() {
-    let subscriber = FmtSubscriber::builder()
-        .with_max_level(Level::TRACE)
-        .finish();
-    tracing::subscriber::set_global_default(subscriber).expect("Setting default subscriber failed");
-    let sched = JobScheduler::new_with_channel_size(1000).await;
-    let mut sched = sched.unwrap();
-    let jobs = run_example(&mut sched)
-        .await
-        .expect("Could not run example");
-    stop_example(&mut sched, jobs)
-        .await
-        .expect("Could not stop example");
+async fn main() -> Result<(), anyhow::Error> {
+    dotenv().ok();
+    tracing_subscriber::fmt::init();
+    info!("Process started with PID: {}", std::process::id());
+    let db_url = std::env::var("DATABASE_URL")?;
+    let pool = PgPool::connect(&db_url).await?;
+
+    let heap = JobScheduler::new().await?;
+
+    let _ = reload_job_from_sql(&pool, heap.clone()).await?;
+    tokio::spawn(async move {
+        loop {
+            match heap.get_job().await {
+                Ok(Some(job_id)) => {
+                    info!("job {} added to queue", job_id);
+
+                    match heap.del_job(job_id).await {
+                        Ok(_) => {
+                            info!("job {} completed", job_id)
+                            // todo()!
+                        },
+                        Err(e) => error!("job {} failed: {}", job_id, e),
+                    }
+                }
+                Ok(None) => {
+                    debug!("No jobs available");
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+                }
+                Err(e) => {
+                    error!("Failed to acquire job: {}", e);
+                }
+            }
+        }
+    });
+
+
+
+
+
+
+
+
+
+    Ok(())
 }

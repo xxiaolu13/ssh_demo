@@ -249,7 +249,7 @@ async fn batch_ssh_execute(
     };
     info!("Authentication complete");
 
-    let (code, output) = timeout(
+    let (_code, output) = timeout(
         COMMAND_TIMEOUT,
         ssh.call(command.as_str())
     )

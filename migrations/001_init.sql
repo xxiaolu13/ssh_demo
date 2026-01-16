@@ -76,50 +76,50 @@ CREATE INDEX IF NOT EXISTS idx_cronjobs_next_execute ON cronjobs(next_execute_at
 -- ============================================
 -- 触发器函数：通知任务变更（包含 DELETE）
 -- ============================================
-CREATE OR REPLACE FUNCTION notify_cronjob_changes()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF (TG_OP = 'INSERT') THEN
-        PERFORM pg_notify('cronjob_changes', json_build_object(
-            'operation', 'INSERT',
-            'id', NEW.id,
-            'enabled', NEW.enabled,
-            'next_execute_at', NEW.next_execute_at
-        )::text);
-        RETURN NEW;
-        
-    ELSIF (TG_OP = 'UPDATE') THEN
-        -- 关键字段变化时才通知
-        IF (OLD.enabled != NEW.enabled OR 
-            OLD.cron_expression != NEW.cron_expression OR
-            OLD.next_execute_at IS DISTINCT FROM NEW.next_execute_at OR
-            OLD.command != NEW.command) THEN
-            PERFORM pg_notify('cronjob_changes', json_build_object(
-                'operation', 'UPDATE',
-                'id', NEW.id,
-                'enabled', NEW.enabled,
-                'next_execute_at', NEW.next_execute_at
-            )::text);
-        END IF;
-        RETURN NEW;
-        
-    ELSIF (TG_OP = 'DELETE') THEN
-        -- DELETE 操作通知
-        PERFORM pg_notify('cronjob_changes', json_build_object(
-            'operation', 'DELETE',
-            'id', OLD.id
-        )::text);
-        RETURN OLD;
-    END IF;
-END;
-$$ LANGUAGE plpgsql;
-
--- 绑定触发器（包含 DELETE）
--- DROP TRIGGER IF EXISTS cronjob_changes_trigger ON cronjobs;
-CREATE TRIGGER cronjob_changes_trigger
-AFTER INSERT OR UPDATE OR DELETE ON cronjobs
-FOR EACH ROW
-EXECUTE FUNCTION notify_cronjob_changes();
+-- CREATE OR REPLACE FUNCTION notify_cronjob_changes()
+-- RETURNS TRIGGER AS $$
+-- BEGIN
+--     IF (TG_OP = 'INSERT') THEN
+--         PERFORM pg_notify('cronjob_changes', json_build_object(
+--             'operation', 'INSERT',
+--             'id', NEW.id,
+--             'enabled', NEW.enabled,
+--             'next_execute_at', NEW.next_execute_at
+--         )::text);
+--         RETURN NEW;
+--
+--     ELSIF (TG_OP = 'UPDATE') THEN
+--         -- 关键字段变化时才通知
+--         IF (OLD.enabled != NEW.enabled OR
+--             OLD.cron_expression != NEW.cron_expression OR
+--             OLD.next_execute_at IS DISTINCT FROM NEW.next_execute_at OR
+--             OLD.command != NEW.command) THEN
+--             PERFORM pg_notify('cronjob_changes', json_build_object(
+--                 'operation', 'UPDATE',
+--                 'id', NEW.id,
+--                 'enabled', NEW.enabled,
+--                 'next_execute_at', NEW.next_execute_at
+--             )::text);
+--         END IF;
+--         RETURN NEW;
+--
+--     ELSIF (TG_OP = 'DELETE') THEN
+--         -- DELETE 操作通知
+--         PERFORM pg_notify('cronjob_changes', json_build_object(
+--             'operation', 'DELETE',
+--             'id', OLD.id
+--         )::text);
+--         RETURN OLD;
+--     END IF;
+-- END;
+-- $$ LANGUAGE plpgsql;
+--
+-- -- 绑定触发器（包含 DELETE）
+-- -- DROP TRIGGER IF EXISTS cronjob_changes_trigger ON cronjobs;
+-- CREATE TRIGGER cronjob_changes_trigger
+-- AFTER INSERT OR UPDATE OR DELETE ON cronjobs
+-- FOR EACH ROW
+-- EXECUTE FUNCTION notify_cronjob_changes();
 
 -- ============================================
 -- 触发器函数：自动更新 updated_at

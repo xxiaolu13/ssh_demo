@@ -1,6 +1,6 @@
 use chrono::Utc;
 use std::time::Duration;
-use tokio_cron_scheduler::{Job, JobBuilder, JobScheduler, JobSchedulerError};
+use tokio_cron_scheduler::{Job,JobScheduler, JobSchedulerError};
 use tracing::{error, info, warn};
 use uuid::Uuid;
 

@@ -8,7 +8,7 @@ use connect_ok::db::pool::AppState;
 use connect_ok::handler::server::*;
 use connect_ok::handler::servergroup::*;
 use actix_cors::Cors;
-use connect_ok::handler::cron_job::{create_cronjob, get_all_cronjobs, get_cronjob_by_id};
+use connect_ok::handler::cron_job::{create_cronjob, get_all_cronjobs, get_cronjob_by_id, update_cronjob};
 
 #[tokio::main]
 async fn main()  -> std::io::Result<()> {
@@ -59,6 +59,7 @@ async fn main()  -> std::io::Result<()> {
                         .route("",web::post().to(create_cronjob))// 创建cronjob
                         .route("",web::get().to(get_all_cronjobs)) // 查所有
                         .route("/{id}",web::get().to(get_cronjob_by_id)) // 根据id查
+                        .route("{id}",web::put().to(update_cronjob)) // 更新cronjob，注意，下次执行时间根据最新的cron表达式更新
                 )
                 .default_service(web::route().to(not_found_handler))
         })

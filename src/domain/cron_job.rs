@@ -1,8 +1,9 @@
 use actix_web::web;
+use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use sqlx::FromRow;
-
+use cron_parser::parse;
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct CronJob {
     pub id: i32,
@@ -55,6 +56,8 @@ pub struct CreateCronJob {
     pub timeout: Option<i32>,
     pub retry_count: Option<i32>,
     pub description: Option<String>,
+    #[serde(skip_deserializing)]
+    pub next_execute_at: Option<DateTime<Utc>>,
 }
 impl TryFrom<web::Json<CreateCronJob>> for CreateCronJob {
     type Error = actix_web::Error;
@@ -69,7 +72,66 @@ impl TryFrom<web::Json<CreateCronJob>> for CreateCronJob {
             timeout: json.timeout,
             retry_count: json.retry_count,
             description: json.description.clone(),
+            next_execute_at: json.next_execute_at.clone(),
         })
     }
 }
 
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct UpdateCronJob {
+    pub name: Option<String>,
+    pub cron_expression: Option<String>,
+    pub server_id: Option<i32>,
+    pub group_id: Option<i32>,
+    pub command: Option<String>,
+    pub enabled: Option<bool>,
+    pub timeout: Option<i32>,
+    pub retry_count: Option<i32>,
+    pub description: Option<String>,
+    #[serde(skip_deserializing)]
+    pub next_execute_at: Option<DateTime<Utc>>,
+}
+
+impl TryFrom<web::Json<UpdateCronJob>> for UpdateCronJob {
+    type Error = actix_web::Error;
+    fn try_from(json: web::Json<UpdateCronJob>) -> actix_web::Result<UpdateCronJob, Self::Error> {
+        Ok(UpdateCronJob{
+            name: json.name.clone(),
+            cron_expression: json.cron_expression.clone(),
+            server_id: json.server_id,
+            group_id: json.group_id,
+            command: json.command.clone(),
+            enabled: json.enabled,
+            timeout: json.timeout,
+            retry_count: json.retry_count,
+            description: json.description.clone(),
+            next_execute_at: json.next_execute_at.clone(),
+
+        })
+    }
+}
+
+
+
+
+pub trait CronJobExecutor {
+    fn get_cron_expression(&self) -> &str;
+    fn next_tick(&self) ->Result<DateTime<Utc>,anyhow::Error> {
+        let time = parse(self.get_cron_expression(), &Local::now())
+        .map_err(|e| anyhow!("Invalid cron expression: {}", e))?;
+        Ok(time.with_timezone(&Utc))
+    }
+}
+
+impl CronJobExecutor for CronJob {
+    fn get_cron_expression(&self) -> &str {
+        &self.cron_expression
+    }
+}
+
+impl CronJobExecutor for CreateCronJob {
+    fn get_cron_expression(&self) -> &str {
+        &self.cron_expression
+    }
+}

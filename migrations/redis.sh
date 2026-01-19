@@ -1,6 +1,6 @@
 #!/usr/bin/fish
 sudo mkdir -p /var/lib/redis/data
-sudo chown -R 999:999 /var/lib/postgresql/data
+sudo chown -R 999:999 /var/lib/redis/data
 docker pull redis:7.2
 docker run -d \
   --name redis-dev \

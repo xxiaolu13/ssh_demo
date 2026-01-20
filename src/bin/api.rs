@@ -52,7 +52,7 @@ async fn main()  -> std::io::Result<()> {
                     web::scope("/ssh")
                         .route("", web::post().to(single_server_ssh_handler))// 单个server执行命令
                         .route("/batch",web::post().to(batch_server_ssh_handler))
-                        .route("/{id}",web::get().to(test_connect)) // 测试ssh连接
+                        .route("/{id}",web::get().to(test_connect_handler)) // 测试ssh连接
                 )
                 .service(
                     web::scope("/cronjob")

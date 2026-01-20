@@ -10,17 +10,22 @@ use russh::client::Config;
 pub struct Message{
     pub user: String,
     pub password: String,
-    pub ip_port: String,
-    pub config: Arc<Config>
+    pub ipaddr: Option<String>,
+    pub port: String,
+    pub config: Arc<Config>,
+    pub server_list: Option<Vec<String>>
 }
 impl Message{
-    pub fn new(user: String, password: String, ipaddr: String, port: String) -> Self {
+    pub fn new(user: String,password: String,port: String,ipaddr: Option<String>,server_list: Option<Vec<String>>) -> Self {
         let config = Arc::new(russh::client::Config::default());
+
         Self{
             user,
             password,
-            ip_port: format!("{}:{}", ipaddr, port),
-            config
+            ipaddr,
+            port,
+            config,
+            server_list,
         }
     }
 }

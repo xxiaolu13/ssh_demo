@@ -1,7 +1,6 @@
 use dotenvy::dotenv;
 use sqlx::PgPool;
 use connect_ok::domain::scheduler::JobScheduler;
-use connect_ok::scheduler::prepare::reload_job_from_sql;
 use tracing::{info, debug, error};
 use tokio::signal;
 use connect_ok::repository::cron_job::*;
@@ -44,7 +43,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let pool1 = pool.clone();
     let heap1 = heap.clone();
     // 首次运行 先reload next execute at,如果不这么做，在执行时候，worker会有任务补偿，将所有任务都执行一遍
-    let _ = reload_job_from_sql(&pool, heap.clone()).await?;
+    let _ = init_job_from_sql(&pool, heap.clone()).await?;
 
     // 定时轮询数据库
     tokio::spawn(async move {

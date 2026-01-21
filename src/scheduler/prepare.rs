@@ -45,6 +45,7 @@ pub fn get_timing(job_expression: &str) -> Result<bool,anyhow::Error> {
     let reload_duration = Duration::seconds(sec);
     
     // 如果周期小于 reload 间隔,返回 true(需要在redis中调度),反之在数据库调度
+    // 现在 >符号，true是需要在数据库调度，false则不用
     Ok(period > reload_duration)
 }
 
@@ -63,8 +64,9 @@ pub async fn reload_single_job(pool: &PgPool,job_id: i32,heap: JobScheduler) -> 
 
 
 pub async fn init_job_from_sql(pool: &PgPool,heap: JobScheduler) -> Result<(), anyhow::Error>{
-let cronjob_id_expression_list = sqlx::query!("SELECT id,cron_expression FROM cronjobs").fetch_all(pool).await?;
-    let job_list: Vec<(i32,String)> = cronjob_id_expression_list.into_iter().map(|row| (row.id,row.cron_expression)).collect();
+    let cronjob_id_expression_list = sqlx::query!("SELECT id,cron_expression,enabled FROM cronjobs").fetch_all(pool).await?;
+    // 过滤enabled
+    let job_list: Vec<(i32,String)> = cronjob_id_expression_list.into_iter().filter(|row|row.enabled).map(|row| (row.id,row.cron_expression)).collect();
     for job in job_list{
         let (job_id, job_expression) = job;
         let next_time = parse(&job_expression, &Utc::now())?;
@@ -87,8 +89,8 @@ let cronjob_id_expression_list = sqlx::query!("SELECT id,cron_expression FROM cr
 
 // 定时 reload
 pub async fn reload_job_from_sql(pool: &PgPool,heap: JobScheduler) -> Result<(), anyhow::Error>{
-let cronjob_id_expression_list = sqlx::query!("SELECT id,cron_expression FROM cronjobs").fetch_all(pool).await?;
-    let job_list: Vec<(i32,String)> = cronjob_id_expression_list.into_iter().map(|row| (row.id,row.cron_expression)).collect();
+let cronjob_id_expression_list = sqlx::query!("SELECT id,cron_expression,enabled FROM cronjobs").fetch_all(pool).await?;
+    let job_list: Vec<(i32,String)> = cronjob_id_expression_list.into_iter().filter(|row|row.enabled).map(|row| (row.id,row.cron_expression)).collect();
     for job in job_list{
         let (job_id, job_expression) = job;
         if get_timing(&job_expression)?{
@@ -103,6 +105,9 @@ pub async fn batch_job_execute(
     pool: &PgPool,
     msg: CronJob
 ) -> Result<tokio::sync::mpsc::Receiver<Result<Bytes, std::io::Error>>, anyhow::Error> {
+    if !msg.enabled{
+        return Err(anyhow::anyhow!("Batch job is not enabled"))
+    }
     let command = msg.command;
     
     // 如果 group_id 不存在，直接返回错误
@@ -127,11 +132,15 @@ pub async fn batch_job_execute(
 
 
 pub async fn single_job_execute(pool: &PgPool,msg: CronJob) -> Result<(u32,String), anyhow::Error>{
+    if !msg.enabled{
+        return Err(anyhow::anyhow!("Single job is not enabled"))
+    }
     let command = msg.command;
     let server_id = msg.server_id.ok_or_else(|| anyhow::anyhow!("server_id is required"))?;
     let server = get_server_by_id_db(pool, server_id).await
     .map_err(|e| anyhow::anyhow!("Failed to get server by group_id: {}", e))?;
     let msg = Message::new(server.ssh_user, server.password.clone(),server.port.to_string(), Some(server.ip),None);
     let (code,output) = single_server_ssh_back(msg, command.clone()).await.map_err(|e| anyhow::anyhow!("Failed to get output: {}", e))?;
+
     Ok((code,output))
 }

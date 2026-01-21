@@ -9,16 +9,18 @@ use anyhow::Result;
 
 // 业务逻辑抽离出来
 async fn process_job(pool: &PgPool, heap: &JobScheduler, job_id: i32) -> Result<()> {
-    heap.del_job(job_id).await?; 
+    // heap.del_job(job_id).await?;
     info!("job {} start execute", job_id);
 
     let msg = get_cronjob_by_id_db(pool, job_id).await?;
     match msg.group_id {
         Some(_) => {
-            batch_job_execute(pool, msg.clone()).await?;     
+            batch_job_execute(pool, msg.clone()).await?;
+            heap.del_job(msg.id).await?;// 任务完成 从processing移除
         },
         None => {
-            single_job_execute(pool, msg.clone()).await?; 
+            single_job_execute(pool, msg.clone()).await?;
+            heap.del_job(msg.id).await?;// 任务完成 从processing移除
         }
     }
     reload_single_job(pool, msg.id, heap.clone()).await?;
@@ -35,7 +37,7 @@ async fn main() -> Result<(), anyhow::Error> {
     info!("Using DATABASE_URL: {}", &db_url);
     let pool = PgPool::connect(&db_url).await?;
     let heap = JobScheduler::new().await?;
-    
+    heap.clear_all_jobs().await?; // 清空所有队列
     let sec = std::env::var("RELOAD_SECS")
     .unwrap_or("3600".to_string()).parse().expect("RELOAD_SECS must be number");
     info!("Worker reloads once every {} secs", &sec);

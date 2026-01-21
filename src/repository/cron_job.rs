@@ -7,6 +7,8 @@ use crate::repository::server::get_server_by_id_db;
 use crate::repository::servergroup::get_group_by_id_db;
 use crate::domain::scheduler::JobScheduler;
 use crate::scheduler::prepare::judge_time;
+use tracing::info;
+
 
 pub async fn get_all_cronjobs_db(pool:&PgPool) -> Result<Vec<CronJob>, anyhow::Error>{
     let rows = sqlx::query_as!(CronJob,"select * from cronjobs").fetch_all(pool).await?;
@@ -61,9 +63,12 @@ pub async fn create_cronjob_db(pool: &PgPool, params: CreateCronJob) -> Result<C
         params.description.clone(),
         next_time
     ).fetch_one(pool).await?;
-    let heap = JobScheduler::new().await?;
-    heap.add_job(row.id,next_time.timestamp_millis()).await?;
-    debug!("created new cronjob: {:?}", row);
+    if row.enabled{ // 要看enabled是否开启
+        let heap = JobScheduler::new().await?;
+        heap.add_job(row.id,next_time.timestamp_millis()).await?;
+        info!("created new cronjob: {:?}", row);
+    }
+
 
     Ok(CreateCronJob{
         name: row.name,
@@ -108,14 +113,22 @@ pub async fn update_cronjob_db(pool: &PgPool, id: i32, params: UpdateCronJob) ->
     let retry_count = check(params.retry_count.clone(), this_job.retry_count.clone());
     let description = check(params.description.clone(), this_job.description.clone());
     let next_execute_at = parse(&cron_expression, &Utc::now())?;
-    // 如果更改表达式，则重新判断这条任务是否进入heap
-    if cron_expression != this_job.cron_expression {
-        let heap = JobScheduler::new().await?;
+
+    let heap = JobScheduler::new().await?;
+    // 如果更改表达式，则重新判断这条任务是否进入heap,并且需要enabled为true
+    if cron_expression != this_job.cron_expression && enabled {
         if judge_time(next_execute_at){
             heap.add_job(this_job.id,next_execute_at.timestamp_millis()).await?;
         }else {
-            heap.del_job(this_job.id).await?; // 这块不管之前有没有，都强制删除了
+            heap.del_job_pending(this_job.id).await?; // 这块不管之前有没有，都强制删除了
         }
+    }else if enabled != this_job.enabled && enabled == false{ // 修改了enable且为false
+        info!("enabled changed..");
+        heap.del_job_pending(this_job.id).await?;
+    }else if enabled != this_job.enabled && enabled == true{// 修改了enable且为true
+        info!("enabled changed..");
+        heap.add_job(this_job.id,next_execute_at.timestamp_millis()).await?;
+        info!("enabled change done");
     }
     match (server_id, group_id) {
         (Some(sid), Some(gid)) => {

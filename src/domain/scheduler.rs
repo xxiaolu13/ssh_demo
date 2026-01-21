@@ -115,15 +115,40 @@ impl JobScheduler {
 
         Ok(())
     }
-    /// 任务完成，从处理队列移除
+    /// 任务完成，从待执行队列移除
+    pub async fn del_job_pending(&self, job_id: i32) -> Result<(), anyhow::Error> {
+        let mut con = self.redis.get_multiplexed_async_connection().await?;
+
+        let _: () = con.zrem("scheduler:pending", job_id).await?;
+        info!("job {} deleted from queue", job_id);
+        Ok(())
+    }
+        /// 任务完成，从待执行队列移除
     pub async fn del_job(&self, job_id: i32) -> Result<(), anyhow::Error> {
         let mut con = self.redis.get_multiplexed_async_connection().await?;
 
         let _:() =con.zrem("scheduler:processing", job_id).await?;
-
+        info!("job {} complete del from processing", job_id);
         Ok(())
     }
+    /// 清除所有队列（包括待执行和处理中）
+    pub async fn clear_all_jobs(&self) -> Result<(usize, usize), anyhow::Error> {
+        let mut con = self.redis.get_multiplexed_async_connection().await?;
 
+        // 删除待执行队列
+        let pending_count: usize = con.del("scheduler:pending").await?;
+
+        // 删除处理中队列
+        let processing_count: usize = con.del("scheduler:processing").await?;
+
+        info!(
+            "Cleared {} pending jobs and {} processing jobs",
+            pending_count,
+            processing_count
+        );
+
+        Ok((pending_count, processing_count))
+    }
     /// 任务失败，重新放回待执行队列
     pub async fn retry_job(
         &self,

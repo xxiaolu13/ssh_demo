@@ -12,8 +12,8 @@ name = "api"
 path = "src/bin/api.rs"
 
 [[bin]]
-name = "simple_worker"
-path = "src/bin/simple_worker.rs"
+name = "worker"
+path = "src/bin/worker.rs"
 
 [[bin]]
 name = "test_worker"

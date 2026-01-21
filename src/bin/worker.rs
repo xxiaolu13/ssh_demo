@@ -2,14 +2,13 @@ use dotenvy::dotenv;
 use sqlx::PgPool;
 use connect_ok::domain::scheduler::JobScheduler;
 use connect_ok::scheduler::prepare::reload_job_from_sql;
-use tracing::{info, debug, error, warn};
+use tracing::{info, debug, error};
 use tokio::signal;
 use connect_ok::repository::cron_job::*;
 use connect_ok::scheduler::prepare::*;
-use anyhow::Result; // 使用 anyhow 简化错误签名
+use anyhow::Result;
 
-// 1. 将具体的业务逻辑抽离出来
-// 这个函数返回 Result，所以你可以随便用 `?`
+// 业务逻辑抽离出来
 async fn process_job(pool: &PgPool, heap: &JobScheduler, job_id: i32) -> Result<()> {
     heap.del_job(job_id).await?; 
     info!("job {} start execute", job_id);
@@ -33,18 +32,35 @@ async fn main() -> Result<(), anyhow::Error> {
     tracing_subscriber::fmt::init();
     info!("Process started with PID: {}", std::process::id());
 
-    let db_url = std::env::var("DATABASE_URL")?;
+    let db_url = std::env::var("DATABASE_URL").expect("notfound env var DATABASE_URL");
+    info!("Using DATABASE_URL: {}", &db_url);
     let pool = PgPool::connect(&db_url).await?;
     let heap = JobScheduler::new().await?;
-
+    
+    let sec = std::env::var("RELOAD_SECS")
+    .unwrap_or("3600".to_string()).parse().expect("RELOAD_SECS must be number");
+    info!("Worker reloads once every {} secs", &sec);
     // 初始化加载
-    reload_job_from_sql(&pool, heap.clone()).await?;
+    let pool1 = pool.clone();
+    let heap1 = heap.clone();
+    // 首次运行 先reload next execute at,如果不这么做，在执行时候，worker会有任务补偿，将所有任务都执行一遍
+    let _ = reload_job_from_sql(&pool, heap.clone()).await?;
 
-    // 2. 在 spawn 之前显式 clone 资源
-    // PgPool 和 你的 JobScheduler (如果是 Arc 封装的) 都是轻量级 clone
+    // 定时轮询数据库
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(sec));
+        interval.tick().await; 
+        loop {
+            interval.tick().await;
+            match reload_job_from_sql(&pool1, heap1.clone()).await {
+                Ok(_) => info!("Reload job from sql success.."),
+                Err(_) => error!("Failed to reload job from sql!!"),
+            };
+        }
+    });
+    // worker启动
     let worker_pool = pool.clone();
     let worker_heap = heap.clone();
-
     tokio::spawn(async move {
         loop {
             let worker_pool2 = worker_pool.clone();
@@ -73,7 +89,6 @@ async fn main() -> Result<(), anyhow::Error> {
         }
     });
 
-    // 等待退出信号
     match signal::ctrl_c().await {
         Ok(()) => info!("Received Ctrl-C, shutting down..."),
         Err(err) => error!("Unable to listen for shutdown signal: {}", err),

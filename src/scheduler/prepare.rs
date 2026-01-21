@@ -1,3 +1,5 @@
+use std::env;
+
 use chrono::{DateTime, Duration, Utc};
 use cron_parser::parse;
 use sqlx::PgPool;
@@ -9,11 +11,13 @@ use crate::utils::crypto::*;
 use crate::domain::server::ServiceTerminal;
 use bytes::Bytes;
 use crate::domain::cron_job::CronJob;
-
+use dotenvy::dotenv;
 
 
 pub fn judge_time(time:DateTime<Utc>) -> bool{
-    time - Utc::now() <= Duration::hours(1)
+    dotenv().ok();
+    let sec = env::var("RELOAD_SECS").unwrap_or("3600".to_string()).parse().expect("RELOAD_SECS must be number");
+    time - Utc::now() <= Duration::seconds(sec)
 }
 
 // pub async fn reload_batch_job(pool: &PgPool,group_id: i32,heap: JobScheduler) -> Result<(), anyhow::Error>{

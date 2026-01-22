@@ -15,9 +15,6 @@ path = "src/bin/api.rs"
 name = "worker"
 path = "src/bin/worker.rs"
 
-[[bin]]
-name = "test_worker"
-path = "src/bin/test_worker.rs"
 
 
 

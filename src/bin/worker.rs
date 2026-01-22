@@ -1,4 +1,5 @@
 use dotenvy::dotenv;
+use log::warn;
 use sqlx::PgPool;
 use connect_ok::domain::scheduler::JobScheduler;
 use tracing::{info, debug, error};
@@ -8,7 +9,7 @@ use connect_ok::scheduler::prepare::*;
 use anyhow::Result;
 
 // 业务逻辑抽离出来
-async fn process_job(pool: &PgPool, heap: &JobScheduler, job_id: i32) -> Result<()> {
+async fn process_job(pool: &PgPool, heap: &JobScheduler, job_id: i32) -> Result<(),anyhow::Error> {
     // heap.del_job(job_id).await?;
     info!("job {} start execute", job_id);
 
@@ -27,12 +28,44 @@ async fn process_job(pool: &PgPool, heap: &JobScheduler, job_id: i32) -> Result<
     Ok(())
 }
 
+async fn retry_process_job(pool: &PgPool,heap: &JobScheduler, job_id: i32) -> Result<()>{
+    let retry_count = sqlx::query!("select retry_count  from cronjobs where id = $1",job_id)
+        .fetch_one(pool).await    
+        .map(|row| row.retry_count)  // 提取字段
+        .unwrap_or(Some(1));  // 失败时默认值
+    if let Some(retry_count) = retry_count{
+        info!("job{} start retry",job_id);
+        let mut i = 0;
+        while i < retry_count {
+            i += 1;
+            match process_job(pool, heap, job_id).await{
+                Ok(_) => {
+                    info!("job {} retry {} times success",job_id,i); 
+                    return Ok(())
+                }
+                _ => {
+                    error!("job {} retry {} times failed",job_id,i);
+                }
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(200)).await; // 间隔200ms，这块的时间可能影响大时间的任务
+            // !todo!("这块需要加个数据库的一项，现在重试失败任务会停止")
+        }
+        let _ = sqlx::query!("UPDATE cronjobs SET enabled = $1 WHERE id=$2",false,job_id).execute(pool).await;
+        error!("job {} all retry failed The job has been actively closed by the program",job_id)
+    }
+    else {
+        warn!("job {} Failed & retry count is None",job_id);
+        return Ok(())
+    }
+    Ok(())
+}
+
+
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     dotenv().ok();
     tracing_subscriber::fmt::init();
     info!("Process started with PID: {}", std::process::id());
-
     let db_url = std::env::var("DATABASE_URL").expect("notfound env var DATABASE_URL");
     info!("Using DATABASE_URL: {}", &db_url);
     let pool = PgPool::connect(&db_url).await?;
@@ -54,7 +87,7 @@ async fn main() -> Result<(), anyhow::Error> {
         loop {
             interval.tick().await;
             match reload_job_from_sql(&pool1, heap1.clone()).await {
-                Ok(_) => info!("Reload job from sql success.."),
+                Ok(_) => info!("Reload job from sql success"),
                 Err(_) => error!("Failed to reload job from sql!!"),
             };
         }
@@ -73,7 +106,11 @@ async fn main() -> Result<(), anyhow::Error> {
                     tokio::spawn(async move{
                         if let Err(e) = process_job(&worker_pool2, &worker_heap2, job_id).await {
                             error!("Failed to process job {}: {:?}", job_id, e);
-                            // 可选：如果是严重错误，可能需要在这里做一些补偿逻辑
+                            let _ = retry_process_job(&worker_pool2,&worker_heap2, job_id).await;
+                            // 这个retry，最后有关闭enabled的逻辑，小时间的任务失败了不会自回归，关闭enable不影响，大时间的任务关闭了enable下次reload就不会带着他了
+                            // 错误后将任务继续加回。。不需要加回，小时间的重试成功自动加回，重试失败不加回，大时间的重试后等待reload加回，失败后关闭enable避免reload到
+                            // let _ = reload_single_job(&worker_pool2, job_id, worker_heap2.clone()).await;
+                            
                         }
                     });
                 }

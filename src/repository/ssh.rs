@@ -100,21 +100,6 @@ pub async fn single_server_ssh_back(msg: Message,command: String) -> Result<(u32
 
 
 pub async fn batch_server_ssh_back(msg: Message,command: String) -> Result<tokio::sync::mpsc::Receiver<Result<Bytes, std::io::Error>>, actix_web::Error> {
-    // 处理server信息，获取地址的vec
-    // let body = body.into_inner();
-    // let group_id = body.group_id;
-    // let server_list:Vec<ServiceTerminal> = get_server_by_group_id_db(&data.db_pool, group_id).await.map_err(|e| {
-    //     error!("Failed to get server by group_id: {:?}", e);
-    //     actix_web::error::ErrorInternalServerError("Failed to get server by group_id")
-    // })?;
-
-    // let ssh_user = server_list[0].ssh_user.clone();
-    // let password = passwd_decrypt(server_list[0].password.clone()).map_err(|e| {
-    //         error!("Failed to change password: {:?}", e);
-    //         actix_web::error::ErrorInternalServerError("Failed to change password")
-    //     })?;
-    // let port = server_list[0].port.to_string();
-    // let server_list:Vec<String> = server_list.into_iter().map(|e|e.ip.clone()).collect();
     let server_list = msg.server_list.unwrap_or(Vec::new());
     // 异步
     let buffer_size = env::var("CNOK_CHANNEL_BUFFER")
@@ -177,7 +162,7 @@ pub async fn batch_server_ssh_back(msg: Message,command: String) -> Result<tokio
             // 这里的 Error 类型必须是 std::io::Error (或者你在 Channel 定义的那个)
             if let Err(_closed) = tx.send(Ok(Bytes::from(json_with_newline))).await {
                 // Channel 已关闭，通常不需要处理，或者记录日志
-                warn!("Receiver dropped"); 
+                warn!("Receiver dropped");
             }
         });
     }

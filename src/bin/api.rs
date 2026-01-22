@@ -1,3 +1,5 @@
+use std::env;
+
 use connect_ok::handler::ssh::*;
 use actix_web::{web, App, HttpServer,middleware};
 use dotenvy::dotenv;
@@ -18,7 +20,9 @@ async fn main()  -> std::io::Result<()> {
     info!("Using DATABASE_URL: {}", &db_url);
     let db_pool = PgPoolOptions::new().connect(&db_url).await.unwrap();
     let share_data = web::Data::new(AppState::new(db_pool).await);
-
+    let bind_addr = env::var("BIND_ADDR").unwrap_or("0.0.0.0".to_string());
+    let bind_port:u16 = env::var("BIND_PORT").unwrap_or("8080".to_string()).parse().expect("RELOAD_SECS must be number");
+    // let bind_port = bind_port.parse().expect("BIND_PORT must use number");
     info!("Started http server");
         HttpServer::new(move || {
                 let cors = Cors::default()
@@ -63,7 +67,7 @@ async fn main()  -> std::io::Result<()> {
                 )
                 .default_service(web::route().to(not_found_handler))
         })
-            .bind(("0.0.0.0", 8080))?
+            .bind((bind_addr, bind_port))?
             .run()
             .await
 }

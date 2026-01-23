@@ -48,7 +48,7 @@ async fn retry_process_job(pool: &PgPool,heap: &JobScheduler, job_id: i32) -> Re
                 }
             }
             tokio::time::sleep(tokio::time::Duration::from_millis(200)).await; // 间隔200ms，这块的时间可能影响大时间的任务
-            // !todo!("这块需要加个数据库的一项，现在重试失败任务会停止")
+            // 任务在重试机制后，如果失败，就再也不会执行了
         }
         let _ = sqlx::query!("UPDATE cronjobs SET enabled = $1 WHERE id=$2",false,job_id).execute(pool).await;
         error!("job {} all retry failed The job has been actively closed by the program",job_id)

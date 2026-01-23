@@ -17,7 +17,7 @@ use dotenvy::dotenv;
 
 pub fn judge_time(time:DateTime<Utc>) -> bool{
     dotenv().ok();
-    let sec = env::var("RELOAD_SECS").unwrap_or("3600".to_string()).parse().expect("RELOAD_SECS must be number");
+    let sec = env::var("SAVE_SECS").unwrap_or("3600".to_string()).parse().expect("RELOAD_SECS must be number");
     time - Utc::now() <= Duration::seconds(sec)
     // 下次执行时间 - 当前时间 < reload sql 间隔
 }
@@ -58,7 +58,7 @@ pub async fn reload_single_job(pool: &PgPool,job_id: i32,heap: JobScheduler) -> 
     let _ = sqlx::query!("UPDATE cronjobs SET next_execute_at = $1 WHERE id = $2",next_time,job_id).execute(pool).await?;
     // 任务执行成功后，自动更新自己的下次执行时间
     info!("Reloaded job {} next execute time",job_id);
-    if judge_time(next_time) {// 下次执行时间 - 当前时间 < reload sql 间隔   ==> 更新这个reload轮次要执行的任务
+    if judge_time(next_time) {// 下次执行时间 - 当前时间 < redis 的保存时间
         heap.add_job(job_id,next_time.timestamp_millis()).await?; // 这块不用修正，符合新逻辑
     }
     Ok(())
@@ -157,7 +157,7 @@ pub async fn reload_job_from_sql(pool: &PgPool,heap: JobScheduler,save_secs: u64
 
             let heap = heap.clone();
             async move {
-                debug!("job {} add to queue from reload sql", job_id);
+                info!("job {} add to queue from reload sql", job_id);
                 heap.add_job(job_id,next_execute_at.timestamp_millis()).await
             }
         })

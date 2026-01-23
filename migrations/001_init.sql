@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS cronjobs
     retry_count     integer                  DEFAULT 0,
     description     text,
     last_executed_at timestamp with time zone,
-    next_execute_at timestamp with time zone,
+    next_execute_at timestamp with time zone,                                              NOT NULL,
     created_at      timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     updated_at      timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT check_server_or_group

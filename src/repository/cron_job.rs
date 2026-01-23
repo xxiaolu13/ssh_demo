@@ -6,7 +6,7 @@ use crate::domain::cron_job::{CreateCronJob, CronJob, CronJobExecutor, UpdateCro
 use crate::repository::server::get_server_by_id_db;
 use crate::repository::servergroup::get_group_by_id_db;
 use crate::domain::scheduler::JobScheduler;
-use crate::scheduler::prepare::judge_time;
+use crate::scheduler::prepare::{judge_time, reload_single_job};
 use tracing::info;
 
 
@@ -23,8 +23,6 @@ pub async fn get_cronjob_by_id_db( pool:&PgPool, id: i32) -> Result<CronJob, any
     let row = sqlx::query_as!(CronJob,"select * from cronjobs where id=$1", id).fetch_one(pool).await?;
     Ok(row)
 }
-
-
 
 
 pub async fn create_cronjob_db(pool: &PgPool, params: CreateCronJob) -> Result<CreateCronJob, anyhow::Error> {
@@ -65,10 +63,11 @@ pub async fn create_cronjob_db(pool: &PgPool, params: CreateCronJob) -> Result<C
     ).fetch_one(pool).await?;
     if row.enabled{ // 要看enabled是否开启
         let heap = JobScheduler::new().await?;
-        heap.add_job(row.id,next_time.timestamp_millis()).await?;
+        if judge_time(next_time) {// 下次执行时间 - 当前时间 < redis 的保存时间
+            heap.add_job(row.id,next_time.timestamp_millis()).await?;
+        }
         info!("created new cronjob: {:?}", row);
     }
-
 
     Ok(CreateCronJob{
         name: row.name,
@@ -120,15 +119,17 @@ pub async fn update_cronjob_db(pool: &PgPool, id: i32, params: UpdateCronJob) ->
         if judge_time(next_execute_at){
             heap.add_job(this_job.id,next_execute_at.timestamp_millis()).await?;
         }else {
-            heap.del_job_pending(this_job.id).await?; // 这块不管之前有没有，都强制删除了
+            heap.del_job_pending(this_job.id).await?;
+            // 意义为 如果开启任务，这个分支代表了下次执行时间大于save time的任务，那么就从redis删除，等待reload进入redis
         }
     }else if enabled != this_job.enabled && enabled == false{ // 修改了enable且为false
         info!("enabled changed..");
         heap.del_job_pending(this_job.id).await?;
     }else if enabled != this_job.enabled && enabled == true{// 修改了enable且为true
         info!("enabled changed..");
-        heap.add_job(this_job.id,next_execute_at.timestamp_millis()).await?;
-        info!("enabled change done");
+        if judge_time(next_execute_at){ // 代表了下次执行时间小于于save time的任务，add进入Redis
+            heap.add_job(this_job.id,next_execute_at.timestamp_millis()).await?;
+        }
     }
     match (server_id, group_id) {
         (Some(sid), Some(gid)) => {

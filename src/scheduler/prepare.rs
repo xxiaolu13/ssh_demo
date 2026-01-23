@@ -162,8 +162,18 @@ pub async fn reload_job_from_sql(pool: &PgPool,heap: JobScheduler,save_secs: u64
             }
         })
         .collect();
+    let results = join_all(tasks).await;
+    for result in results {
+        result?;
+    }
     Ok(())
 }
+
+
+
+
+
+
 pub async fn batch_job_execute(
     pool: &PgPool,
     msg: CronJob

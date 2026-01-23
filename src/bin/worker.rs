@@ -73,7 +73,7 @@ async fn main() -> Result<(), anyhow::Error> {
     heap.clear_all_jobs().await?; // 清空所有队列
     let reload_sec: u64 = std::env::var("RELOAD_SECS")
         .unwrap_or("100".to_string()).parse().expect("RELOAD_SECS must be number");
-    let save_sec: u64 = std::env::var("SAVE_SEC")
+    let save_sec: u64 = std::env::var("SAVE_SECS")
         .unwrap_or("300".to_string()).parse().expect("SAVE_SECS must be number");
     info!("Worker reloads every {} secs,Redis save {} secs", reload_sec,save_sec);
     // 初始化加载

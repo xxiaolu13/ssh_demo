@@ -71,9 +71,11 @@ async fn main() -> Result<(), anyhow::Error> {
     let pool = PgPool::connect(&db_url).await?;
     let heap = JobScheduler::new().await?;
     heap.clear_all_jobs().await?; // 清空所有队列
-    let sec = std::env::var("RELOAD_SECS")
-    .unwrap_or("3600".to_string()).parse().expect("RELOAD_SECS must be number");
-    info!("Worker reloads once every {} secs", &sec);
+    let reload_sec: u64 = std::env::var("RELOAD_SECS")
+        .unwrap_or("100".to_string()).parse().expect("RELOAD_SECS must be number");
+    let save_sec: u64 = std::env::var("SAVE_SEC")
+        .unwrap_or("300".to_string()).parse().expect("SAVE_SECS must be number");
+    info!("Worker reloads every {} secs,Redis save {} secs", reload_sec,save_sec);
     // 初始化加载
     let pool1 = pool.clone();
     let heap1 = heap.clone();
@@ -82,11 +84,11 @@ async fn main() -> Result<(), anyhow::Error> {
 
     // 定时轮询数据库
     tokio::spawn(async move {
-        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(sec));
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(reload_sec));
         interval.tick().await; 
         loop {
             interval.tick().await;
-            match reload_job_from_sql(&pool1, heap1.clone()).await {
+            match reload_job_from_sql(&pool1, heap1.clone(),save_sec).await { // save_secs 是保存时间，小于这个时间需要add heap
                 Ok(_) => info!("Reload job from sql success"),
                 Err(_) => error!("Failed to reload job from sql!!"),
             };

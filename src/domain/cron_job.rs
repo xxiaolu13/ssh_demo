@@ -17,7 +17,7 @@ pub struct CronJob {
     pub retry_count: Option<i32>,
     pub description: Option<String>,
     pub last_executed_at: Option<DateTime<Utc>>,
-    pub next_execute_at: Option<DateTime<Utc>>,
+    pub next_execute_at: DateTime<Utc>,
     pub created_at: Option<DateTime<Utc>>,
     pub updated_at: Option<DateTime<Utc>>,
 }
@@ -57,7 +57,7 @@ pub struct CreateCronJob {
     pub retry_count: Option<i32>,
     pub description: Option<String>,
     #[serde(skip_deserializing)]
-    pub next_execute_at: Option<DateTime<Utc>>,
+    pub next_execute_at: DateTime<Utc>,
 }
 impl TryFrom<web::Json<CreateCronJob>> for CreateCronJob {
     type Error = actix_web::Error;

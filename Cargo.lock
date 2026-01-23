@@ -610,6 +610,7 @@ dependencies = [
  "chrono",
  "cron-parser",
  "dotenvy",
+ "futures",
  "hex",
  "log",
  "redis",

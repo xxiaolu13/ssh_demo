@@ -8,6 +8,7 @@ use tracing::info;
 use connect_ok::handler::notfound::not_found_handler;
 use connect_ok::db::pool::AppState;
 use connect_ok::handler::server::*;
+use connect_ok::handler::cron_log::*;
 use connect_ok::handler::servergroup::*;
 use actix_cors::Cors;
 use connect_ok::handler::cron_job::{create_cronjob, get_all_cronjobs, get_cronjob_by_id, update_cronjob};
@@ -51,6 +52,11 @@ async fn main()  -> std::io::Result<()> {
                         .route("/{id}", web::get().to(get_server_by_id))// 根据server的id查找server
                         .route("/{id}",web::delete().to(delete_single_server_by_id))// 删除单个server根据server的id
                         .route("/group/{id}", web::get().to(get_server_by_group_id))// 根据group的id查找server
+                )
+                .service(
+                    web::scope("/cronlog")
+                       //  .route("",web::post().to(create_cron_log))
+                        .route("/{id}",web::get().to(get_cron_log_by_job_id)) // 测试ssh连接
                 )
                 .service(
                     web::scope("/ssh")

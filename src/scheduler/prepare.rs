@@ -175,6 +175,7 @@ pub async fn reload_job_from_sql(pool: &PgPool,heap: JobScheduler,save_secs: u64
 
 
 pub async fn batch_job_execute(
+    job_id: Option<i32>,
     pool: &PgPool,
     msg: CronJob
 ) -> Result<tokio::sync::mpsc::Receiver<Result<Bytes, std::io::Error>>, anyhow::Error> {
@@ -197,14 +198,14 @@ pub async fn batch_job_execute(
     let server_list: Vec<String> = server_list.into_iter().map(|e| e.ip.clone()).collect();
 
     let msg = Message::new(ssh_user, password, port, None, Some(server_list));
-    let rx = batch_server_ssh_back(msg, command).await.map_err(|e| anyhow::anyhow!("Failed to get rx: {}", e))?;
+    let rx = batch_server_ssh_back(job_id, pool,msg, command).await.map_err(|e| anyhow::anyhow!("Failed to get rx: {}", e))?;
     
     Ok(rx)
 }
 
 
 
-pub async fn single_job_execute(pool: &PgPool,msg: CronJob) -> Result<(u32,String), anyhow::Error>{
+pub async fn single_job_execute(job_id:Option<i32>,pool: &PgPool,msg: CronJob) -> Result<(u32,String), anyhow::Error>{
     if !msg.enabled{
         return Err(anyhow::anyhow!("Single job is not enabled"))
     }
@@ -213,7 +214,7 @@ pub async fn single_job_execute(pool: &PgPool,msg: CronJob) -> Result<(u32,Strin
     let server = get_server_by_id_db(pool, server_id).await
     .map_err(|e| anyhow::anyhow!("Failed to get server by group_id: {}", e))?;
     let msg = Message::new(server.ssh_user, server.password.clone(),server.port.to_string(), Some(server.ip),None);
-    let (code,output) = single_server_ssh_back(msg, command.clone()).await.map_err(|e| anyhow::anyhow!("Failed to get output: {}", e))?;
+    let (code,output) = single_server_ssh_back(job_id ,pool,msg, command.clone()).await.map_err(|e| anyhow::anyhow!("Failed to get output: {}", e))?;
 
     Ok((code,output))
 }

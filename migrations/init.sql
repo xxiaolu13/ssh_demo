@@ -138,23 +138,21 @@ BEFORE UPDATE ON cronjobs
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();
 
--- ============================================
--- 执行日志表（可选，用于记录任务执行历史）
--- ============================================
+
 CREATE TABLE IF NOT EXISTS cronjob_logs
 (
-    log_id      bigserial                                      NOT NULL
-        CONSTRAINT cronjob_logs_pkey PRIMARY KEY,
+    log_id            serial
+        primary key,
     job_id      integer                                        NOT NULL
         CONSTRAINT fk_cronjob
             REFERENCES cronjobs(id)
             ON UPDATE CASCADE ON DELETE CASCADE,
-    executed_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
-    status      varchar(20)                                    NOT NULL, -- 'success', 'failed', 'timeout'
+    status      varchar(20)                               NOT NULL,     -- info warn error
     output      text,
-    error       text,
-    duration_ms integer
+    created_at  timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
 );
 
 CREATE INDEX IF NOT EXISTS idx_cronjob_logs_job_id ON cronjob_logs(job_id);
-CREATE INDEX IF NOT EXISTS idx_cronjob_logs_executed_at ON cronjob_logs(executed_at);
+CREATE INDEX IF NOT EXISTS idx_cronjob_logs_executed_at ON cronjob_logs(created_at);
+
+

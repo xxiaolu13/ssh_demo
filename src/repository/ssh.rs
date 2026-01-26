@@ -1,16 +1,27 @@
 use std::sync::Arc;
-use crate::{domain::ssh_configuration::{Client, Message, Session}};
+use crate::{domain::{cron_log::CreateCronLog, ssh_configuration::{Client, Message, Session}}};
 use crate::domain::ssh_session::*;
 use actix_web::error::ErrorInternalServerError;
+use tracing::error;
+use sqlx::PgPool;
 use tracing::log::{info,warn};
 use crate::utils::crypto::*;
-use actix_web::error::{ErrorPayloadTooLarge,ErrorRequestTimeout,ErrorGatewayTimeout};
+use actix_web::error::{ErrorRequestTimeout,ErrorGatewayTimeout};
 use tokio::time::{Duration, timeout};
 use std::env;
 use bytes::Bytes;
-
-
-
+use crate::repository::cron_log::create_cron_log_db;
+use russh::client::AuthResult;
+macro_rules! log_and_record {
+    ($job_id:expr, $pool:expr, $status:expr, $message:expr) => {
+        if let (Some(id), p) = ($job_id, $pool) {
+            let job_log = CreateCronLog::new(id, $status.into(), Some($message.into()));
+            if let Err(e) = create_cron_log_db(p, job_log).await {
+                warn!("Failed to create log: {}", e);
+            }
+        }
+    };
+}
 
 // 超时问题
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
@@ -46,60 +57,22 @@ pub async fn test_connect_back(msg: Message) -> Result<String, actix_web::Error>
 
 
 
-pub async fn single_server_ssh_back(msg: Message,command: String) -> Result<(u32,String), actix_web::Error> {
+pub async fn single_server_ssh_back(job_id: Option<i32>,pool:&PgPool,msg: Message,command: String) -> Result<(u32,String), actix_web::Error> {
     let ip = msg.ipaddr.unwrap_or("".to_string());
     let ip_port = format!("{}:{}",ip,msg.port);
     info!("connect to {}",ip_port);
     let password = passwd_decrypt(msg.password.clone())
         .map_err(|e| ErrorInternalServerError(format!("Password decryption failed: {}", e)))?;
-    let mut connect: russh::client::Handle<Client> = timeout(
-        CONNECTION_TIMEOUT,
-        russh::client::connect(msg.config,ip_port,Client)
-    )
-    .await
-    .map_err(|_| ErrorRequestTimeout("Connection timeout"))?  // 处理 timeout 错误
-    .map_err(|e| ErrorInternalServerError(e))?;               // 处理 russh 错误
-
-    timeout(
-        AUTH_TIMEOUT,
-        connect.authenticate_password(msg.user,password)
-    )
-    .await
-    .map_err(|_| ErrorGatewayTimeout("Auth timeout"))?
-    .map_err(|e| ErrorInternalServerError(format!("Authentication failed: {}", e)))?;
-
-
-    info!("Connected to the server");
-    let mut ssh = Session{
-        session: connect,
-    };
-    info!("Authentication complete");
-    let (code, output) = timeout(
-        COMMAND_TIMEOUT,
-        ssh.call(&command)
-    )
-    .await
-    .map_err(|_| ErrorGatewayTimeout("Command timeout"))?
-    .map_err(|e| ErrorInternalServerError(e))?;
-    info!("timeout success");
-    // let (code,output) = ssh.call(&body.command).await.map_err(|e| ErrorInternalServerError(e))?;
-    const MAX_OUTPUT_SIZE: usize = 1 * 1024 * 1024; // 1MB
-
-    // 检查输出大小
-    if output.len() > MAX_OUTPUT_SIZE {
-        return Err(ErrorPayloadTooLarge(
-            format!("Output exceeds {}MB limit", MAX_OUTPUT_SIZE / 1024 / 1024)
-        ));
-    }
-    info!("output success");
-    ssh.close().await.map_err(|e| ErrorInternalServerError(e))?;
-    info!("ssh closed");
+    let config = Arc::new(russh::client::Config::default());
+    let command = Arc::new(command.clone());
+    let (code,output) = ssh_execute(job_id, pool, config, ip_port, msg.user, password, command)
+    .await.map_err(|e| actix_web::error::ErrorInternalServerError(e))?;
     Ok((code, output))
 }
 
 
 
-pub async fn batch_server_ssh_back(msg: Message,command: String) -> Result<tokio::sync::mpsc::Receiver<Result<Bytes, std::io::Error>>, actix_web::Error> {
+pub async fn batch_server_ssh_back(job_id: Option<i32>,pool: &PgPool,msg: Message,command: String) -> Result<tokio::sync::mpsc::Receiver<Result<Bytes, std::io::Error>>, actix_web::Error> {
     let server_list = msg.server_list.unwrap_or(Vec::new());
     // 异步
     let buffer_size = env::var("CNOK_CHANNEL_BUFFER")
@@ -118,9 +91,12 @@ pub async fn batch_server_ssh_back(msg: Message,command: String) -> Result<tokio
             let ip_port = format!("{}:{}",server,msg.port);
             let user = msg.user.clone();
             let password = msg.password.clone();
-
+            let pool_new = pool.clone();
+            
         tokio::spawn(async move{
-            let result = batch_ssh_execute(
+            let result = ssh_execute(
+                job_id,
+                &pool_new,
                 config, 
                 ip_port.clone(), 
                 user, 
@@ -129,7 +105,7 @@ pub async fn batch_server_ssh_back(msg: Message,command: String) -> Result<tokio
             ).await;
             
             let final_json = match result {
-                Ok(output) => {
+                Ok((_code,output)) => {
                     let ssh_result = SshResult {
                         server: server_label.clone(),
                         output,
@@ -172,30 +148,74 @@ pub async fn batch_server_ssh_back(msg: Message,command: String) -> Result<tokio
 }
 
 // 防止batch server ssh handler中tokio spawn中的嵌套，所以单独拿出来这部分，后续加密钥认证方便改
-async fn batch_ssh_execute(
+async fn ssh_execute(
+    job_id: Option<i32>,
+    pool: &PgPool,
     config: Arc<russh::client::Config>,
     ip_port: String,
     user: String,
     password: String,
     command: Arc<String>
-) -> Result<String, String> {
-    let ip_port_clone = ip_port.clone();
-    let mut connect: russh::client::Handle<Client> = timeout(
-        CONNECTION_TIMEOUT,
-        russh::client::connect(config, ip_port, Client)
-    )
-    .await
-    .map_err(|_| format!("Connection timeout to {}", ip_port_clone))?
-    .map_err(|e| format!("Connection failed: {}", e))?;              // 处理 russh 错误
-    let user_clone = user.clone();
+) -> Result<(u32,String), String> {
+    // let ip_port_clone = ip_port.clone();
+    // let mut connect: russh::client::Handle<Client> = timeout(
+    //     CONNECTION_TIMEOUT,
+    //     russh::client::connect(config, ip_port, Client)
+    // )
+    // .await
+    // .map_err(|_| format!("Connection timeout to {}", ip_port_clone))?
+    // .map_err(|e| format!("Connection failed: {}", e))?;
+    let mut connect: russh::client::Handle<Client> = 
+    match timeout(CONNECTION_TIMEOUT, russh::client::connect(config, ip_port.clone(), Client)).await {
+        Ok(Ok(handle)) => {
+            log_and_record!(job_id, pool, "INFO", format!("Connection success to {}",ip_port));
+            handle
+        }
+        Ok(Err(e)) => {
+            let msg = format!("Connection failed for {}: {}",ip_port, e);
+            log_and_record!(job_id, pool, "ERROR", &msg);
+            error!("{}", msg);
+            return Err(msg.into());
+        }
+        Err(_) => {
+            let msg = format!("Connection timeout to {}", ip_port);
+            log_and_record!(job_id, pool, "ERROR", &msg);
+            error!("{}", msg);
+            return Err(msg.into());
+        }
+    };
+
     // 认证
-    timeout(
-        AUTH_TIMEOUT,
-        connect.authenticate_password(user,password)
-    )
-    .await
-    .map_err(|_| format!("Auth timeout for user {}", user_clone))?
-    .map_err(|e| format!("Authentication failed: {}", e))?;
+    // timeout(
+    //     AUTH_TIMEOUT,
+    //     connect.authenticate_password(user,password)
+    // )
+    // .await
+    // .map_err(|_| format!("Auth timeout for user {}", user_clone))?
+    // .map_err(|e| format!("Authentication failed: {}", e))?;
+
+
+
+// 2. 认证
+    match timeout(AUTH_TIMEOUT, connect.authenticate_password(user.clone(), password)).await {
+        Ok(Ok(AuthResult::Success)) => {
+            log_and_record!(job_id, pool, "INFO", format!("{} Authentication success",ip_port));
+            info!("Authenticated for user {}", user);
+        }
+        Ok(Err(e)) => {
+            let msg = format!("{} Authentication error: {}",ip_port, e);
+            log_and_record!(job_id, pool, "ERROR", &msg);
+            error!("{}", msg);
+            return Err(msg.into());
+        }
+        _ => {
+            let msg = format!("{} Authentication timeout for user {}",ip_port, user);
+            log_and_record!(job_id, pool, "ERROR", &msg);
+            error!("{}", msg);
+            return Err(msg.into());
+        }
+    }
+
 
 
     info!("Connected to the server");
@@ -204,14 +224,36 @@ async fn batch_ssh_execute(
     };
     info!("Authentication complete");
 
-    let (_code, output) = timeout(
-        COMMAND_TIMEOUT,
-        ssh.call(command.as_str())
-    )
-    .await
-    .map_err(|_| "Command execution timeout".to_string())?
-    .map_err(|e| format!("Command execution failed: {}", e))?;
-
+    // let (_code, output) = timeout(
+    //     COMMAND_TIMEOUT,
+    //     ssh.call(command.as_str())
+    // )
+    // .await
+    // .map_err(|_| "Command execution timeout".to_string())?
+    // .map_err(|e| format!("Command execution failed: {}", e))?;
+    let (code, output) = match timeout(COMMAND_TIMEOUT, ssh.call(command.as_str())).await {
+        Ok(Ok((code, output))) => {
+            log_and_record!(
+                job_id,
+                pool,
+                &code.to_string(),
+                &output
+            );
+            (code, output)
+        }
+        Ok(Err(e)) => {
+            let msg = format!("{} Command execution failed: {}",ip_port, e);
+            log_and_record!(job_id, pool, "ERROR", &msg);
+            error!("{}", msg);
+            (1, String::new())
+        }
+        Err(_) => {
+            let msg = format!("{} Command execution timeout",ip_port.clone());
+            log_and_record!(job_id, pool, "ERROR", &msg);
+            error!("{}", msg);
+            (1, String::new())
+        }
+    };
     // let (code,output) = ssh.call(&body.command).await.map_err(|e| ErrorInternalServerError(e))?;
     const MAX_OUTPUT_SIZE: usize = 1 * 1024 * 1024; // 1MB
 
@@ -226,5 +268,5 @@ async fn batch_ssh_execute(
 
     ssh.close().await.map_err(|e| format!("Failed to close connection: {}", e))?;
     
-    Ok(output)
+    Ok((code,output))
 }

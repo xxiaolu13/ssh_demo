@@ -12,16 +12,29 @@ use anyhow::Result;
 async fn process_job(pool: &PgPool, heap: &JobScheduler, job_id: i32) -> Result<(),anyhow::Error> {
     // heap.del_job(job_id).await?;
     info!("job {} start execute", job_id);
-
+    // let job_log = CreateCronLog::new(job_id, status, output);
     let msg = get_cronjob_by_id_db(pool, job_id).await?;
     match msg.group_id {
         Some(_) => {
-            batch_job_execute(pool, msg.clone()).await?;
+            batch_job_execute(Some(job_id),pool, msg.clone()).await?;
             heap.del_job(msg.id).await?;// 任务完成 从processing移除
         },
         None => {
-            single_job_execute(pool, msg.clone()).await?;
-            heap.del_job(msg.id).await?;// 任务完成 从processing移除
+            single_job_execute(Some(job_id),pool, msg.clone()).await?;
+            heap.del_job(msg.id).await?;
+            // let (code,output) = single_job_execute(pool, msg.clone()).await?;
+            // let job_log = match single_job_execute(pool, msg.clone()).await{
+            //     Ok((code,output)) => {
+            //         let job_log = CreateCronLog::new(job_id, code.to_string(), Some(output));
+            //         heap.del_job(msg.id).await?;// 任务完成 从processing移除
+            //         job_log
+            //     }
+            //     _ => {
+            //         let job_log = CreateCronLog::new(job_id, "Error".into(),None);
+            //         job_log
+            //     }
+            // };
+            // let _  = create_cron_log_db(pool, job_log).await?;
         }
     }
     reload_single_job(pool, msg.id, heap.clone()).await?;

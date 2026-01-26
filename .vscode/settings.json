@@ -1,0 +1,10 @@
+{
+    "rust-analyzer.server.path": null,
+    // 启用代码补全时自动导入
+    "rust-analyzer.completion.autoimport.enable": true,
+    
+    // 启用快速修复
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit"
+    },
+}

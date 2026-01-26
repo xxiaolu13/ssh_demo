@@ -33,7 +33,7 @@ pub async fn single_server_ssh_handler(data: web::Data<AppState>,body:web::Json<
         actix_web::error::ErrorInternalServerError("Failed to get server please register server")
     })?;
     let msg = Message::new(server.ssh_user, server.password.clone(),server.port.to_string(), Some(server.ip),None);
-    let (code,output) = single_server_ssh_back(msg, body.command.clone()).await?;
+    let (code,output) = single_server_ssh_back(None,&data.db_pool,msg, body.command.clone()).await?;
     Ok(HttpResponse::Ok().json(SshResponse {
         exit_code: code,
         output,
@@ -61,7 +61,7 @@ pub async fn batch_server_ssh_handler(data: web::Data<AppState>,body:web::Json<B
     
     let msg = Message::new(ssh_user, password, port, None, Some(server_list));
 
-    let rx = batch_server_ssh_back(msg, body.command.clone()).await?;
+    let rx = batch_server_ssh_back(None,&data.db_pool,msg, body.command.clone()).await?;
 
     // 异步
     // let buffer_size = env::var("CNOK_CHANNEL_BUFFER")

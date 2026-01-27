@@ -12,17 +12,22 @@ use std::env;
 use bytes::Bytes;
 use crate::repository::cron_log::create_cron_log_db;
 use russh::client::AuthResult;
+
 macro_rules! log_and_record {
-    ($job_id:expr, $pool:expr, $status:expr, $message:expr) => {
-        if let (Some(id), p) = ($job_id, $pool) {
-            let job_log = CreateCronLog::new(id, $status.into(), Some($message.into()));
-            if let Err(e) = create_cron_log_db(p, job_log).await {
+    ($job_id:expr, $pool:expr, $server_ip:expr, $status:expr, $message:expr) => {
+        if let Some(id) = $job_id {
+            let job_log = CreateCronLog::new(
+                id,
+                $server_ip.to_string(),
+                $status.to_string(),
+                Some($message.to_string())
+            );
+            if let Err(e) = create_cron_log_db($pool, job_log).await {
                 warn!("Failed to create log: {}", e);
             }
         }
     };
 }
-
 // 超时问题
 const CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
 const AUTH_TIMEOUT: Duration = Duration::from_secs(5);
@@ -168,18 +173,18 @@ async fn ssh_execute(
     let mut connect: russh::client::Handle<Client> = 
     match timeout(CONNECTION_TIMEOUT, russh::client::connect(config, ip_port.clone(), Client)).await {
         Ok(Ok(handle)) => {
-            log_and_record!(job_id, pool, "INFO", format!("Connection success to {}",ip_port));
+            log_and_record!(job_id, pool,ip_port,"INFO", format!("Connection success to {}",ip_port));
             handle
         }
         Ok(Err(e)) => {
             let msg = format!("Connection failed for {}: {}",ip_port, e);
-            log_and_record!(job_id, pool, "ERROR", &msg);
+            log_and_record!(job_id, pool,ip_port,"ERROR", &msg);
             error!("{}", msg);
             return Err(msg.into());
         }
         Err(_) => {
             let msg = format!("Connection timeout to {}", ip_port);
-            log_and_record!(job_id, pool, "ERROR", &msg);
+            log_and_record!(job_id, pool, ip_port,"ERROR", &msg);
             error!("{}", msg);
             return Err(msg.into());
         }
@@ -199,18 +204,18 @@ async fn ssh_execute(
 // 2. 认证
     match timeout(AUTH_TIMEOUT, connect.authenticate_password(user.clone(), password)).await {
         Ok(Ok(AuthResult::Success)) => {
-            log_and_record!(job_id, pool, "INFO", format!("{} Authentication success",ip_port));
+            log_and_record!(job_id, pool, ip_port,"INFO", format!("{} Authentication success",ip_port));
             info!("Authenticated for user {}", user);
         }
         Ok(Err(e)) => {
             let msg = format!("{} Authentication error: {}",ip_port, e);
-            log_and_record!(job_id, pool, "ERROR", &msg);
+            log_and_record!(job_id, pool, ip_port,"ERROR", &msg);
             error!("{}", msg);
             return Err(msg.into());
         }
         _ => {
             let msg = format!("{} Authentication timeout for user {}",ip_port, user);
-            log_and_record!(job_id, pool, "ERROR", &msg);
+            log_and_record!(job_id, pool, ip_port,"ERROR", &msg);
             error!("{}", msg);
             return Err(msg.into());
         }
@@ -236,6 +241,7 @@ async fn ssh_execute(
             log_and_record!(
                 job_id,
                 pool,
+                ip_port,
                 &code.to_string(),
                 &output
             );
@@ -243,13 +249,13 @@ async fn ssh_execute(
         }
         Ok(Err(e)) => {
             let msg = format!("{} Command execution failed: {}",ip_port, e);
-            log_and_record!(job_id, pool, "ERROR", &msg);
+            log_and_record!(job_id, pool, ip_port,"ERROR", &msg);
             error!("{}", msg);
             (1, String::new())
         }
         Err(_) => {
             let msg = format!("{} Command execution timeout",ip_port.clone());
-            log_and_record!(job_id, pool, "ERROR", &msg);
+            log_and_record!(job_id, pool, ip_port,"ERROR", &msg);
             error!("{}", msg);
             (1, String::new())
         }

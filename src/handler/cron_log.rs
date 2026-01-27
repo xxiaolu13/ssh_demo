@@ -1,7 +1,6 @@
 use actix_web::{HttpResponse, web};
 use crate::db::pool::AppState;
-use crate::domain::cron_log::CreateCronLog;
-use crate::repository::cron_log::{create_cron_log_db, get_cron_log_by_job_id_db};
+use crate::repository::cron_log::get_cron_log_by_job_id_db;
 use log::error;
 
 
